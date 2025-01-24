@@ -1,0 +1,27 @@
+2025-01-23T16:44:14.509+01:00 ERROR 9916 --- [beneficiary-management-api] [restartedMain] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Failed to bind properties under 'logging.level.org.springframework' to org.springframework.boot.logging.LogLevel:
+
+    Property: logging.level.org.springframework
+    Value: "INFO # Niveau de log pour Spring"
+    Origin: class path resource [application.properties] - 9:35
+    Reason: failed to convert java.lang.String to org.springframework.boot.logging.LogLevel (caused by java.lang.IllegalArgumentException: No enum constant org.springframework.boot.logging.LogLevel.INFO # Niveau de log pour Spring)
+
+Action:
+
+Update your application's configuration. The following values are valid:
+
+    DEBUG
+    ERROR
+    FATAL
+    INFO
+    OFF
+    TRACE
+    WARN
+
