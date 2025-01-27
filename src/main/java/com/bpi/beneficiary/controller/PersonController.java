@@ -1,12 +1,9 @@
 package com.bpi.beneficiary.controller;
 
 
-import com.bpi.beneficiary.client.PersonBeneficiary;
+import com.bpi.beneficiary.client.Person;
 
-import com.bpi.beneficiary.manager.BeneficiaryManagementService;
 import com.bpi.beneficiary.manager.PersonService;
-import lombok.AllArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +23,7 @@ public class PersonController {
     }
 
     @PostMapping("/person-individual")
-    public ResponseEntity<?> createPerson(@RequestBody PersonBeneficiary person, UriComponentsBuilder uriBuilder) {
+    public ResponseEntity<?> createPerson(@RequestBody Person person, UriComponentsBuilder uriBuilder) {
         if(person == null || person.firstName() == null || person.firstName().isEmpty() ||
                 person.lastName() == null || person.lastName().isEmpty()){
             return new ResponseEntity<>("Person name is mandatory", HttpStatus.BAD_REQUEST);
@@ -39,7 +36,7 @@ public class PersonController {
 
     @GetMapping("/person/{id}")
     public ResponseEntity<?> findPerson(@PathVariable UUID id){
-        PersonBeneficiary person = personService.getPerson(id);
+        Person person = personService.getPerson(id);
         if (person == null) {
             return new ResponseEntity<>("Person not found", HttpStatus.NOT_FOUND);
         }
