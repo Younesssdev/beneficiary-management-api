@@ -1,6 +1,7 @@
 package com.bpi.beneficiary.manager;
 
 import com.bpi.beneficiary.client.Beneficiary;
+import com.bpi.beneficiary.client.BeneficiaryOwner;
 import com.bpi.beneficiary.client.Company;
 import com.bpi.beneficiary.client.Person;
 import jakarta.annotation.PostConstruct;
@@ -83,37 +84,52 @@ public class BeneficiaryManagementService {
 
         return switch (filter == null || filter.isEmpty() ? "all" : filter) {
             case "all" -> company.beneficiaries();
-             // TODO: The capitalPercentage is set to 0.0 only for the response, and does not modify the original Beneficiary capitalPercentage.
-            //       This was done to respect the return type List<Beneficiary> and avoid creating a new DTO.
-            //       This should be refactored later to return a specific DTO
             case "person" -> getAllPersonAsBeneficiaries(company);
             case "beneficial" -> getEffectiveBeneficiaries(company);
+            // TODO Specify and customize error
             default -> throw new IllegalArgumentException("Invalid filter value: " + filter);
         };
     }
 
     private List<Beneficiary> getAllPersonAsBeneficiaries(Company company) {
-        Set<Object> allPerson = new HashSet<>();
+        Map<Person, Double> personCapitalMap = new HashMap<>();
         company.beneficiaries().forEach(beneficiary ->
-                collectAllPeople(beneficiary.beneficiary(), allPerson, new HashSet<>())
+                collectAllPersonsWithCapital(beneficiary.beneficiary(), beneficiary.capitalPercentage(), personCapitalMap, new HashSet<>())
         );
-        return allPerson.stream()
-                .map(person -> new Beneficiary(person, 0.0))
+        return personCapitalMap.entrySet().stream()
+                .map(entry -> new Beneficiary(entry.getKey(), entry.getValue()))
                 .toList();
+    }
+
+    private void collectAllPersonsWithCapital(BeneficiaryOwner owner, double currentPercentage,
+                                             Map<Person, Double> personCapitalMap, Set<BeneficiaryOwner> visited) {
+        if (!visited.add(owner)) {
+            return;
+        }
+
+        switch (owner) {
+            case Person person -> {
+                personCapitalMap.merge(person, currentPercentage, Double::sum);
+            }
+            case Company company -> {
+                company.beneficiaries().forEach(beneficiary -> {
+                    double indirectPercentage = currentPercentage * (beneficiary.capitalPercentage() / 100);
+                    collectAllPersonsWithCapital(beneficiary.beneficiary(), indirectPercentage, personCapitalMap, visited);
+                });
+            }
+        }
     }
 
     private List<Beneficiary> getEffectiveBeneficiaries(Company company) {
         final double OWNERSHIP_THRESHOLD = 25.0;
 
-        Map<Object, Double> individualOwnership = new HashMap<>();
+        Map<BeneficiaryOwner, Double> individualOwnership = new HashMap<>();
         company.beneficiaries().forEach(beneficiary -> {
-            Object beneficiaryOwner = beneficiary.beneficiary();
+            BeneficiaryOwner beneficiaryOwner = beneficiary.beneficiary();
             switch (beneficiaryOwner) {
                 case Person person -> individualOwnership.merge(person, beneficiary.capitalPercentage(), Double::sum);
                 case Company subCompany -> calculateIndirectOwnership(
                         subCompany, beneficiary.capitalPercentage(), individualOwnership, new HashSet<>());
-                // TODO Specify and customize error
-                default -> throw new IllegalArgumentException("Unexpected beneficiary type: " + beneficiaryOwner.getClass());
             }
         });
 
@@ -123,35 +139,19 @@ public class BeneficiaryManagementService {
                 .toList();
     }
 
-    private void collectAllPeople(Object owner, Set<Object> allPeople, Set<Object> visited) {
-        if (!visited.add(owner)) {
-            return;
-        }
-        switch (owner) {
-            case Person person -> allPeople.add(person);
-            case Company company -> company.beneficiaries().forEach(beneficiary ->
-                    collectAllPeople(beneficiary.beneficiary(), allPeople, visited)
-            );
-            // TODO Specify and customize error
-            default -> throw new IllegalArgumentException("Unexpected owner type: " + owner.getClass());
-        }
-    }
-
-    private void calculateIndirectOwnership(Object owner, double currentPercentage,
-                                            Map<Object, Double> individualOwnership, Set<Object> visited) {
+    private void calculateIndirectOwnership(BeneficiaryOwner owner, double currentPercentage,
+                                            Map<BeneficiaryOwner, Double> individualOwnership, Set<BeneficiaryOwner> visited) {
         if (!visited.add(owner)) {
             return;
         }
         if (owner instanceof Company company) {
             company.beneficiaries().forEach(beneficiary -> {
                 double indirectPercentage = currentPercentage * (beneficiary.capitalPercentage() / 100);
-                Object beneficiaryOwner = beneficiary.beneficiary();
+                BeneficiaryOwner beneficiaryOwner = beneficiary.beneficiary();
                 switch (beneficiaryOwner) {
                     case Person person -> individualOwnership.merge(person, indirectPercentage, Double::sum);
                     case Company subCompany -> calculateIndirectOwnership(
                             subCompany, indirectPercentage, individualOwnership, visited);
-                    // TODO Specify and customize error
-                    default -> throw new IllegalArgumentException("Unexpected beneficiary type: " + beneficiaryOwner.getClass());
                 }
             });
         }
@@ -168,7 +168,7 @@ public class BeneficiaryManagementService {
         if (company == null){
             return false;
         }
-        Object beneficiary = personService.getPerson(beneficiaryId);
+        BeneficiaryOwner beneficiary = personService.getPerson(beneficiaryId);
         if(beneficiary == null){
             beneficiary = companies.get(beneficiaryId);
             if (beneficiary == null){
